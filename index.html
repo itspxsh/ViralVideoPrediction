@@ -17,10 +17,10 @@
   --border:      #E8E3DC;
   --text:        #1A1714;
   --text-muted:  #7A736A;
-  --accent-1:    #7C4DFF;  /* electric violet */
-  --accent-2:    #FF4D8D;  /* hot pink        */
-  --accent-3:    #FFB347;  /* amber           */
-  --accent-4:    #00D4AA;  /* teal            */
+  --accent-1:    #7C4DFF;
+  --accent-2:    #FF4D8D;
+  --accent-3:    #FFB347;
+  --accent-4:    #00D4AA;
   --grad-a:      linear-gradient(135deg, var(--accent-1) 0%, var(--accent-2) 100%);
   --grad-b:      linear-gradient(135deg, #7C4DFF22 0%, #FF4D8D22 100%);
   --shadow-sm:   0 2px 8px rgba(0,0,0,.06);
@@ -156,6 +156,7 @@ label strong { color: var(--text); font-weight: 600; }
 
 input[type="number"],
 input[type="text"],
+input[type="url"],
 select {
   width: 100%;
   height: 46px;
@@ -173,6 +174,48 @@ input:focus, select:focus {
   border-color: var(--accent-1);
   box-shadow: 0 0 0 3px #7C4DFF18;
 }
+
+/* ── URL Fetch ─────────────────────────────────────────────────── */
+.url-fetch-card {
+  grid-column: 1 / -1;
+  background: var(--surface-2);
+  border: 1.5px dashed #DCD4CC;
+  border-radius: var(--r-sm);
+  padding: 16px;
+}
+.url-fetch-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: end;
+}
+@media (max-width: 560px) {
+  .url-fetch-row { grid-template-columns: 1fr; }
+}
+.btn-fetch {
+  height: 46px;
+  border: none;
+  border-radius: var(--r-sm);
+  background: #1A1714;
+  color: #fff;
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  padding: 0 18px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: transform .2s, opacity .2s;
+}
+.btn-fetch:hover { transform: translateY(-1px); }
+.btn-fetch.loading { pointer-events: none; opacity: .65; }
+.metadata-status {
+  margin-top: 10px;
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+.metadata-status.success { color: #057A5A; }
+.metadata-status.error { color: #C0392B; }
 
 /* ── Slider ─────────────────────────────────────────────────────── */
 .slider-wrap { display: flex; flex-direction: column; gap: 6px; }
@@ -193,6 +236,45 @@ input[type="range"] {
   background: var(--grad-a);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
+}
+
+/* ── Hook Prompt Box ────────────────────────────────────────────── */
+.hook-helper {
+  margin-top: 8px;
+  background: #7C4DFF10;
+  border: 1px solid #7C4DFF24;
+  border-radius: var(--r-sm);
+  padding: 12px 14px;
+  font-size: 12.5px;
+  color: var(--text);
+}
+.hook-helper-title {
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--accent-1);
+  margin-bottom: 6px;
+}
+.hook-helper code {
+  display: block;
+  margin-top: 6px;
+  white-space: normal;
+  font-family: var(--font-body);
+  color: var(--text);
+}
+.copy-prompt {
+  margin-top: 10px;
+  border: 1px solid #7C4DFF40;
+  background: #fff;
+  color: var(--accent-1);
+  border-radius: 99px;
+  padding: 6px 10px;
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
 }
 
 /* ── Toggle ─────────────────────────────────────────────────────── */
@@ -258,7 +340,7 @@ input[type="range"] {
 .btn-predict:hover  { transform: translateY(-2px); box-shadow: 0 8px 28px #7C4DFF50; }
 .btn-predict:active { transform: translateY(0); }
 .btn-predict.loading { pointer-events: none; opacity: .7; }
-.btn-predict .spinner {
+.spinner {
   display: inline-block;
   width: 16px; height: 16px;
   border: 2px solid #ffffff60;
@@ -408,6 +490,26 @@ input[type="range"] {
       <div class="card-label">Reel Metadata</div>
       <div class="form-grid">
 
+        <!-- Instagram URL Fetch -->
+        <div class="url-fetch-card">
+          <div class="url-fetch-row">
+            <div class="field">
+              <label><strong>Instagram Reel URL</strong> optional auto-fill</label>
+              <input
+                type="url"
+                id="reel_url"
+                placeholder="Paste an Instagram Reel URL here"
+              />
+            </div>
+            <button class="btn-fetch" id="fetch-btn" onclick="fetchMetadata()">
+              Fetch Data
+            </button>
+          </div>
+          <div class="metadata-status" id="metadata-status">
+            Paste a public Reel URL to auto-fill length, caption length, and hashtag count.
+          </div>
+        </div>
+
         <!-- Reel Length -->
         <div class="field">
           <label><strong>Reel Length</strong> (seconds)</label>
@@ -440,6 +542,12 @@ input[type="range"] {
               <input type="range" id="hook_strength_score" min="0" max="1" step="0.01" value="0.75" />
               <span class="slider-val" id="hook_val">0.75</span>
             </div>
+          </div>
+
+          <div class="hook-helper">
+            <div class="hook-helper-title">AI Prompt for Hook Score</div>
+            <code id="hook-prompt">I am about to post this Reel. Please analyze the first 3 seconds of this script: [Insert Script/Idea]. Rate its hook strength from 0.00 to 1.00 based on curiosity gap, problem-solving, or visual disruption.</code>
+            <button class="copy-prompt" type="button" onclick="copyHookPrompt()">Copy prompt</button>
           </div>
         </div>
 
@@ -528,11 +636,21 @@ input[type="range"] {
 <div class="toast" id="toast"></div>
 
 <script>
+const API_BASE = 'http://localhost:8000';
+
 /* ── Slider live value ──────────────────────────────── */
 const hookSlider = document.getElementById('hook_strength_score');
 const hookVal    = document.getElementById('hook_val');
+
 hookSlider.addEventListener('input', () => {
   hookVal.textContent = parseFloat(hookSlider.value).toFixed(2);
+});
+
+document.getElementById('reel_url').addEventListener('keydown', (event) => {
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    fetchMetadata();
+  }
 });
 
 /* ── Toast helper ───────────────────────────────────── */
@@ -543,16 +661,108 @@ function showToast(msg) {
   setTimeout(() => t.classList.remove('show'), 3500);
 }
 
+/* ── Metadata status helper ─────────────────────────── */
+function setMetadataStatus(message, type = '') {
+  const el = document.getElementById('metadata-status');
+  el.textContent = message;
+  el.className = 'metadata-status' + (type ? ' ' + type : '');
+}
+
+/* ── Copy hook prompt ───────────────────────────────── */
+async function copyHookPrompt() {
+  const promptText = document.getElementById('hook-prompt').textContent;
+
+  try {
+    await navigator.clipboard.writeText(promptText);
+    showToast('✅ Hook prompt copied.');
+  } catch (err) {
+    showToast('⚠️ Could not copy prompt. Select and copy it manually.');
+  }
+}
+
+/* ── Hybrid auto-fill via yt-dlp backend ────────────── */
+async function fetchMetadata() {
+  const urlInput = document.getElementById('reel_url');
+  const fetchBtn = document.getElementById('fetch-btn');
+  const url = urlInput.value.trim();
+
+  if (!url) {
+    showToast('⚠️ Paste an Instagram Reel URL first.');
+    setMetadataStatus('Paste a public Reel URL to auto-fill metadata.', 'error');
+    return;
+  }
+
+  fetchBtn.classList.add('loading');
+  fetchBtn.innerHTML = '<span class="spinner"></span> Fetching…';
+  setMetadataStatus('Fetching metadata with yt-dlp…');
+
+  try {
+    const resp = await fetch(`${API_BASE}/fetch-metadata`, {
+      method : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body   : JSON.stringify({ url }),
+    });
+
+    let data;
+    try {
+      data = await resp.json();
+    } catch {
+      data = {};
+    }
+
+    if (!resp.ok) {
+      throw new Error(data.detail || `HTTP ${resp.status}`);
+    }
+
+    const filled = [];
+
+    if (data.reel_length_sec !== null && data.reel_length_sec !== undefined) {
+      document.getElementById('reel_length_sec').value = data.reel_length_sec;
+      filled.push('length');
+    }
+
+    if (Number.isFinite(Number(data.caption_length))) {
+      document.getElementById('caption_length').value = data.caption_length;
+      filled.push('caption length');
+    }
+
+    if (Number.isFinite(Number(data.hashtags_count))) {
+      document.getElementById('hashtags_count').value = data.hashtags_count;
+      filled.push('hashtags');
+    }
+
+    if (filled.length === 0) {
+      setMetadataStatus('Metadata was fetched, but no auto-fillable fields were found.', 'error');
+      showToast('⚠️ No usable metadata found.');
+      return;
+    }
+
+    setMetadataStatus(`Auto-filled: ${filled.join(', ')}. You can still adjust values manually.`, 'success');
+    showToast('✅ Reel metadata auto-filled.');
+
+  } catch (err) {
+    const friendly = err.message.includes('fetch')
+      ? 'Could not reach API — is the server running?'
+      : err.message;
+
+    setMetadataStatus(friendly, 'error');
+    showToast('❌ ' + friendly);
+
+  } finally {
+    fetchBtn.classList.remove('loading');
+    fetchBtn.innerHTML = 'Fetch Data';
+  }
+}
+
 /* ── Animate gauge ──────────────────────────────────── */
 function animateGauge(score) {
-  const circumference = 2 * Math.PI * 80;   // ≈ 502.65
+  const circumference = 2 * Math.PI * 80;
   const fill  = document.getElementById('gauge-fill-circle');
   const label = document.getElementById('gauge-score');
 
   const ratio  = score / 100;
   const offset = circumference * (1 - ratio);
 
-  // Reset first (triggers re-transition)
   fill.style.strokeDashoffset = circumference;
   fill.style.transition = 'none';
 
@@ -563,14 +773,16 @@ function animateGauge(score) {
     });
   });
 
-  // Number counter
   label.classList.remove('show');
   let current = 0;
-  const step  = Math.ceil(score / 40);
+  const step  = Math.max(1, Math.ceil(score / 40));
   const timer = setInterval(() => {
     current = Math.min(current + step, score);
     label.textContent = current;
-    if (current >= score) { clearInterval(timer); label.classList.add('show'); }
+    if (current >= score) {
+      clearInterval(timer);
+      label.classList.add('show');
+    }
   }, 28);
 }
 
@@ -579,13 +791,17 @@ function animateBars(probs) {
   const bars = [
     { fill: 'bar-low',   pct: 'pct-low',   val: probs.Low },
     { fill: 'bar-mod',   pct: 'pct-mod',   val: probs.Moderate },
-    { fill: 'bar-viral', pct: 'pct-viral',  val: probs.Viral },
+    { fill: 'bar-viral', pct: 'pct-viral', val: probs.Viral },
   ];
+
   bars.forEach(({ fill, pct, val }) => {
+    const safeVal = Number.isFinite(Number(val)) ? Number(val) : 0;
     const el = document.getElementById(fill);
     el.style.width = '0';
-    setTimeout(() => { el.style.width = (val * 100).toFixed(1) + '%'; }, 50);
-    document.getElementById(pct).textContent = (val * 100).toFixed(1) + '%';
+    setTimeout(() => {
+      el.style.width = (safeVal * 100).toFixed(1) + '%';
+    }, 50);
+    document.getElementById(pct).textContent = (safeVal * 100).toFixed(1) + '%';
   });
 }
 
@@ -593,7 +809,6 @@ function animateBars(probs) {
 async function runPredict() {
   const btn = document.getElementById('predict-btn');
 
-  // Collect values
   const payload = {
     reel_length_sec    : parseInt(document.getElementById('reel_length_sec').value),
     posting_time       : parseInt(document.getElementById('posting_time').value),
@@ -603,18 +818,22 @@ async function runPredict() {
     trending_audio     : document.getElementById('trending_audio').checked,
   };
 
-  // Basic client-side guard
-  if (isNaN(payload.reel_length_sec) || isNaN(payload.posting_time)) {
-    showToast('⚠️  Please fill in all fields.');
+  if (
+    isNaN(payload.reel_length_sec) ||
+    isNaN(payload.posting_time) ||
+    isNaN(payload.hook_strength_score) ||
+    isNaN(payload.caption_length) ||
+    isNaN(payload.hashtags_count)
+  ) {
+    showToast('⚠️ Please fill in all fields.');
     return;
   }
 
-  // Loading state
   btn.classList.add('loading');
   btn.innerHTML = '<span class="spinner"></span> Analysing…';
 
   try {
-    const resp = await fetch('http://localhost:8000/predict', {
+    const resp = await fetch(`${API_BASE}/predict`, {
       method : 'POST',
       headers: { 'Content-Type': 'application/json' },
       body   : JSON.stringify(payload),
@@ -627,15 +846,13 @@ async function runPredict() {
 
     const data = await resp.json();
 
-    /* Show gauge section */
-    document.getElementById('idle-state').style.display   = 'none';
+    document.getElementById('idle-state').style.display = 'none';
+
     const gs = document.getElementById('gauge-section');
     gs.style.display = 'flex';
 
-    /* Animate gauge */
     animateGauge(data.virality_score);
 
-    /* Class badge */
     const classEl = document.getElementById('result-class');
     classEl.textContent = data.predicted_class === 'Viral'    ? '🚀 Viral!'   :
                           data.predicted_class === 'Moderate' ? '📈 Moderate' :
@@ -643,7 +860,6 @@ async function runPredict() {
     classEl.className = 'result-class ' + data.predicted_class.toLowerCase();
     setTimeout(() => classEl.classList.add('show'), 100);
 
-    /* Prob bars */
     const probEl = document.getElementById('prob-bars');
     probEl.classList.remove('show');
     setTimeout(() => {
@@ -651,18 +867,16 @@ async function runPredict() {
       probEl.classList.add('show');
     }, 100);
 
-    /* Feedback / tips */
     document.getElementById('tip-text').innerHTML =
       `<span style="font-size:18px;">💡</span> ${data.feedback}`;
 
-    /* Pop animation on result card */
     const rc = document.getElementById('result-card');
     rc.classList.remove('pop');
     void rc.offsetWidth;
     rc.classList.add('pop');
 
   } catch (err) {
-    showToast('❌  ' + (err.message.includes('fetch') ? 'Could not reach API — is the server running?' : err.message));
+    showToast('❌ ' + (err.message.includes('fetch') ? 'Could not reach API — is the server running?' : err.message));
   } finally {
     btn.classList.remove('loading');
     btn.innerHTML = '✦ Predict Virality';
