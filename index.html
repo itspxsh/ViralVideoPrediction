@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ReelIQ — Virality Predictor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap" rel="stylesheet" />
+
+<style>
+/* ── Design Tokens ──────────────────────────────────────────────── */
+:root {
+  --bg:          #F5F2EE;
+  --surface:     #FFFFFF;
+  --surface-2:   #F9F7F4;
+  --border:      #E8E3DC;
+  --text:        #1A1714;
+  --text-muted:  #7A736A;
+  --accent-1:    #7C4DFF;  /* electric violet */
+  --accent-2:    #FF4D8D;  /* hot pink        */
+  --accent-3:    #FFB347;  /* amber           */
+  --accent-4:    #00D4AA;  /* teal            */
+  --grad-a:      linear-gradient(135deg, var(--accent-1) 0%, var(--accent-2) 100%);
+  --grad-b:      linear-gradient(135deg, #7C4DFF22 0%, #FF4D8D22 100%);
+  --shadow-sm:   0 2px 8px rgba(0,0,0,.06);
+  --shadow-md:   0 8px 32px rgba(0,0,0,.10);
+  --r:           20px;
+  --r-sm:        12px;
+  --font-display:'Syne', sans-serif;
+  --font-body:   'DM Sans', sans-serif;
+  --ring-size:   200px;
+}
+
+/* ── Reset & Base ───────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.6;
+  min-height: 100vh;
+}
+
+/* ── Layout ─────────────────────────────────────────────────────── */
+.shell {
+  max-width: 1060px;
+  margin: 0 auto;
+  padding: 40px 24px 80px;
+}
+
+/* ── Header ─────────────────────────────────────────────────────── */
+header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 44px;
+}
+.logo-pill {
+  background: var(--grad-a);
+  color: #fff;
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  padding: 6px 14px;
+  border-radius: 99px;
+}
+header h1 {
+  font-family: var(--font-display);
+  font-size: clamp(22px, 4vw, 32px);
+  font-weight: 800;
+  letter-spacing: -.02em;
+}
+header h1 span {
+  background: var(--grad-a);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.header-sub {
+  margin-left: auto;
+  font-size: 13px;
+  color: var(--text-muted);
+  text-align: right;
+  line-height: 1.4;
+}
+
+/* ── Bento Grid ─────────────────────────────────────────────────── */
+.bento {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-rows: auto auto;
+  gap: 16px;
+}
+.card {
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: var(--r);
+  padding: 28px 28px 24px;
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow .25s, transform .25s;
+}
+.card:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); }
+
+.card-form   { grid-column: 1 / 3; grid-row: 1 / 3; }
+.card-result { grid-column: 3 / 4; grid-row: 1 / 2; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 340px; }
+.card-tips   { grid-column: 3 / 4; grid-row: 2 / 3; background: var(--grad-b); }
+
+@media (max-width: 720px) {
+  .bento { grid-template-columns: 1fr; }
+  .card-form, .card-result, .card-tips { grid-column: 1; grid-row: auto; }
+}
+
+/* ── Card Labels ────────────────────────────────────────────────── */
+.card-label {
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.card-label::before {
+  content: '';
+  display: inline-block;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--grad-a);
+}
+
+/* ── Form ───────────────────────────────────────────────────────── */
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px 24px;
+}
+@media (max-width: 500px) { .form-grid { grid-template-columns: 1fr; } }
+
+.field { display: flex; flex-direction: column; gap: 8px; }
+.field.full { grid-column: 1 / -1; }
+
+label {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text-muted);
+  letter-spacing: .01em;
+}
+label strong { color: var(--text); font-weight: 600; }
+
+input[type="number"],
+input[type="text"],
+select {
+  width: 100%;
+  height: 46px;
+  padding: 0 14px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  font-family: var(--font-body);
+  font-size: 15px;
+  color: var(--text);
+  transition: border-color .2s, box-shadow .2s;
+  outline: none;
+}
+input:focus, select:focus {
+  border-color: var(--accent-1);
+  box-shadow: 0 0 0 3px #7C4DFF18;
+}
+
+/* ── Slider ─────────────────────────────────────────────────────── */
+.slider-wrap { display: flex; flex-direction: column; gap: 6px; }
+.slider-row  { display: flex; align-items: center; gap: 12px; }
+input[type="range"] {
+  flex: 1;
+  height: 6px;
+  accent-color: var(--accent-1);
+  cursor: pointer;
+  border-radius: 99px;
+}
+.slider-val {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 700;
+  min-width: 44px;
+  text-align: right;
+  background: var(--grad-a);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* ── Toggle ─────────────────────────────────────────────────────── */
+.toggle-row { display: flex; align-items: center; gap: 14px; }
+.toggle {
+  position: relative;
+  width: 52px; height: 28px;
+  flex-shrink: 0;
+}
+.toggle input { opacity: 0; width: 0; height: 0; }
+.toggle-track {
+  position: absolute; inset: 0;
+  background: #D5CFC8;
+  border-radius: 99px;
+  cursor: pointer;
+  transition: background .25s;
+}
+.toggle input:checked + .toggle-track { background: var(--accent-1); }
+.toggle-thumb {
+  position: absolute;
+  top: 3px; left: 3px;
+  width: 22px; height: 22px;
+  background: #fff;
+  border-radius: 50%;
+  pointer-events: none;
+  transition: transform .25s cubic-bezier(.34,1.56,.64,1);
+  box-shadow: 0 1px 4px rgba(0,0,0,.20);
+}
+.toggle input:checked ~ .toggle-thumb { transform: translateX(24px); }
+.toggle-label { font-size: 14px; }
+.badge-trending {
+  display: inline-block;
+  background: #FF4D8D1A;
+  color: var(--accent-2);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 99px;
+  margin-left: 4px;
+}
+
+/* ── Submit Button ──────────────────────────────────────────────── */
+.btn-predict {
+  grid-column: 1 / -1;
+  margin-top: 8px;
+  height: 52px;
+  border: none;
+  border-radius: var(--r-sm);
+  background: var(--grad-a);
+  color: #fff;
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  transition: transform .2s, box-shadow .2s;
+  box-shadow: 0 4px 20px #7C4DFF40;
+}
+.btn-predict:hover  { transform: translateY(-2px); box-shadow: 0 8px 28px #7C4DFF50; }
+.btn-predict:active { transform: translateY(0); }
+.btn-predict.loading { pointer-events: none; opacity: .7; }
+.btn-predict .spinner {
+  display: inline-block;
+  width: 16px; height: 16px;
+  border: 2px solid #ffffff60;
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin .6s linear infinite;
+  vertical-align: middle;
+  margin-right: 8px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Circular Gauge ─────────────────────────────────────────────── */
+.gauge-wrap {
+  position: relative;
+  width: var(--ring-size);
+  height: var(--ring-size);
+}
+.gauge-svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+.gauge-track { stroke: #EDE9E3; fill: none; stroke-width: 12; }
+.gauge-fill  {
+  fill: none;
+  stroke-width: 12;
+  stroke-linecap: round;
+  stroke: url(#gaugeGrad);
+  stroke-dasharray: 502;
+  stroke-dashoffset: 502;
+  transition: stroke-dashoffset 1.2s cubic-bezier(.34,1.1,.64,1);
+}
+.gauge-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.gauge-score {
+  font-family: var(--font-display);
+  font-size: 42px;
+  font-weight: 800;
+  line-height: 1;
+  background: var(--grad-a);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  opacity: 0;
+  transform: scale(.6);
+  transition: opacity .4s .8s, transform .5s .8s cubic-bezier(.34,1.56,.64,1);
+}
+.gauge-score.show { opacity: 1; transform: scale(1); }
+.gauge-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+/* ── Result Meta ────────────────────────────────────────────────── */
+.result-class {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 800;
+  margin-top: 14px;
+  opacity: 0;
+  transition: opacity .4s 1.2s;
+}
+.result-class.show { opacity: 1; }
+.result-class.low      { color: var(--accent-3); }
+.result-class.moderate { color: var(--accent-1); }
+.result-class.viral    { background: var(--grad-a); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+
+/* ── Prob Bars ──────────────────────────────────────────────────── */
+.prob-bars { width: 100%; margin-top: 16px; display: flex; flex-direction: column; gap: 8px; opacity: 0; transition: opacity .4s 1.4s; }
+.prob-bars.show { opacity: 1; }
+.prob-row { display: flex; align-items: center; gap: 10px; font-size: 12px; }
+.prob-name { min-width: 64px; font-weight: 600; color: var(--text-muted); }
+.prob-bar-bg { flex: 1; height: 8px; background: var(--border); border-radius: 99px; overflow: hidden; }
+.prob-bar-fill { height: 100%; border-radius: 99px; width: 0; transition: width 1s .9s cubic-bezier(.34,1,.64,1); }
+.prob-bar-fill.low      { background: var(--accent-3); }
+.prob-bar-fill.moderate { background: var(--accent-1); }
+.prob-bar-fill.viral    { background: var(--grad-a); }
+.prob-pct { min-width: 36px; text-align: right; font-weight: 700; font-size: 12px; }
+
+/* ── Tips Card ──────────────────────────────────────────────────── */
+.tips-card { font-size: 13.5px; line-height: 1.6; color: var(--text); }
+.tips-card .tip-text { margin-top: 4px; }
+.tips-card .empty-state { color: var(--text-muted); font-style: italic; }
+
+/* ── Idle Gauge State ───────────────────────────────────────────── */
+.idle-state {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 13px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+.idle-icon { font-size: 40px; }
+
+/* ── Error Toast ────────────────────────────────────────────────── */
+.toast {
+  position: fixed;
+  bottom: 24px; left: 50%;
+  transform: translateX(-50%) translateY(80px);
+  background: #FF4D4D;
+  color: #fff;
+  padding: 12px 22px;
+  border-radius: 99px;
+  font-size: 14px;
+  font-weight: 500;
+  box-shadow: var(--shadow-md);
+  transition: transform .35s cubic-bezier(.34,1.56,.64,1);
+  z-index: 99;
+  white-space: nowrap;
+}
+.toast.show { transform: translateX(-50%) translateY(0); }
+
+/* ── Animations ─────────────────────────────────────────────────── */
+@keyframes pop {
+  0%   { transform: scale(1); }
+  50%  { transform: scale(1.06); }
+  100% { transform: scale(1); }
+}
+.pop { animation: pop .35s ease; }
+</style>
+</head>
+<body>
+
+<div class="shell">
+
+  <!-- Header -->
+  <header>
+    <div>
+      <div class="logo-pill">ReelIQ</div>
+    </div>
+    <h1>Virality <span>Predictor</span></h1>
+    <p class="header-sub">Pre-publish metadata only<br>No post-publish leakage</p>
+  </header>
+
+  <!-- Bento Grid -->
+  <div class="bento">
+
+    <!-- ── Form Card ─────────────────────────────────── -->
+    <div class="card card-form">
+      <div class="card-label">Reel Metadata</div>
+      <div class="form-grid">
+
+        <!-- Reel Length -->
+        <div class="field">
+          <label><strong>Reel Length</strong> (seconds)</label>
+          <input type="number" id="reel_length_sec" value="30" min="3" max="600" />
+        </div>
+
+        <!-- Posting Time -->
+        <div class="field">
+          <label><strong>Posting Hour</strong> (0–23)</label>
+          <input type="number" id="posting_time" value="18" min="0" max="23" />
+        </div>
+
+        <!-- Caption Length -->
+        <div class="field">
+          <label><strong>Caption Length</strong> (characters)</label>
+          <input type="number" id="caption_length" value="120" min="0" max="2200" />
+        </div>
+
+        <!-- Hashtags Count -->
+        <div class="field">
+          <label><strong>Hashtag Count</strong></label>
+          <input type="number" id="hashtags_count" value="5" min="0" max="30" />
+        </div>
+
+        <!-- Hook Strength Slider -->
+        <div class="field full">
+          <label><strong>Hook Strength Score</strong></label>
+          <div class="slider-wrap">
+            <div class="slider-row">
+              <input type="range" id="hook_strength_score" min="0" max="1" step="0.01" value="0.75" />
+              <span class="slider-val" id="hook_val">0.75</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Trending Audio Toggle -->
+        <div class="field full">
+          <label><strong>Trending Audio</strong></label>
+          <div class="toggle-row">
+            <label class="toggle">
+              <input type="checkbox" id="trending_audio" checked />
+              <span class="toggle-track"></span>
+              <span class="toggle-thumb"></span>
+            </label>
+            <span class="toggle-label">Using a trending track <span class="badge-trending">🔥 Trend</span></span>
+          </div>
+        </div>
+
+        <!-- Submit -->
+        <button class="btn-predict" id="predict-btn" onclick="runPredict()">
+          ✦ Predict Virality
+        </button>
+
+      </div>
+    </div>
+
+    <!-- ── Result Card ────────────────────────────────── -->
+    <div class="card card-result" id="result-card">
+      <!-- Idle state -->
+      <div class="idle-state" id="idle-state">
+        <div class="idle-icon">📊</div>
+        <p>Fill in the metadata<br>and hit Predict</p>
+      </div>
+
+      <!-- Gauge (hidden initially) -->
+      <div id="gauge-section" style="display:none; flex-direction:column; align-items:center; width:100%;">
+        <div class="gauge-wrap">
+          <svg class="gauge-svg" viewBox="0 0 180 180" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <linearGradient id="gaugeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%"   stop-color="#7C4DFF"/>
+                <stop offset="100%" stop-color="#FF4D8D"/>
+              </linearGradient>
+            </defs>
+            <circle class="gauge-track" cx="90" cy="90" r="80"/>
+            <circle class="gauge-fill"  cx="90" cy="90" r="80" id="gauge-fill-circle"/>
+          </svg>
+          <div class="gauge-center">
+            <span class="gauge-score" id="gauge-score">—</span>
+            <span class="gauge-label">/ 100</span>
+          </div>
+        </div>
+
+        <div class="result-class" id="result-class"></div>
+
+        <div class="prob-bars" id="prob-bars">
+          <div class="prob-row">
+            <span class="prob-name">🟡 Low</span>
+            <div class="prob-bar-bg"><div class="prob-bar-fill low" id="bar-low"></div></div>
+            <span class="prob-pct" id="pct-low">0%</span>
+          </div>
+          <div class="prob-row">
+            <span class="prob-name">🟣 Moderate</span>
+            <div class="prob-bar-bg"><div class="prob-bar-fill moderate" id="bar-mod"></div></div>
+            <span class="prob-pct" id="pct-mod">0%</span>
+          </div>
+          <div class="prob-row">
+            <span class="prob-name">🩷 Viral</span>
+            <div class="prob-bar-bg"><div class="prob-bar-fill viral" id="bar-viral"></div></div>
+            <span class="prob-pct" id="pct-viral">0%</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Tips Card ──────────────────────────────────── -->
+    <div class="card card-tips tips-card">
+      <div class="card-label">AI Feedback</div>
+      <p class="tip-text" id="tip-text">
+        <span class="empty-state">Your personalised insight will appear here after prediction.</span>
+      </p>
+    </div>
+
+  </div><!-- /bento -->
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+/* ── Slider live value ──────────────────────────────── */
+const hookSlider = document.getElementById('hook_strength_score');
+const hookVal    = document.getElementById('hook_val');
+hookSlider.addEventListener('input', () => {
+  hookVal.textContent = parseFloat(hookSlider.value).toFixed(2);
+});
+
+/* ── Toast helper ───────────────────────────────────── */
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3500);
+}
+
+/* ── Animate gauge ──────────────────────────────────── */
+function animateGauge(score) {
+  const circumference = 2 * Math.PI * 80;   // ≈ 502.65
+  const fill  = document.getElementById('gauge-fill-circle');
+  const label = document.getElementById('gauge-score');
+
+  const ratio  = score / 100;
+  const offset = circumference * (1 - ratio);
+
+  // Reset first (triggers re-transition)
+  fill.style.strokeDashoffset = circumference;
+  fill.style.transition = 'none';
+
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      fill.style.transition = 'stroke-dashoffset 1.2s cubic-bezier(.34,1.1,.64,1)';
+      fill.style.strokeDashoffset = offset;
+    });
+  });
+
+  // Number counter
+  label.classList.remove('show');
+  let current = 0;
+  const step  = Math.ceil(score / 40);
+  const timer = setInterval(() => {
+    current = Math.min(current + step, score);
+    label.textContent = current;
+    if (current >= score) { clearInterval(timer); label.classList.add('show'); }
+  }, 28);
+}
+
+/* ── Prob bars ──────────────────────────────────────── */
+function animateBars(probs) {
+  const bars = [
+    { fill: 'bar-low',   pct: 'pct-low',   val: probs.Low },
+    { fill: 'bar-mod',   pct: 'pct-mod',   val: probs.Moderate },
+    { fill: 'bar-viral', pct: 'pct-viral',  val: probs.Viral },
+  ];
+  bars.forEach(({ fill, pct, val }) => {
+    const el = document.getElementById(fill);
+    el.style.width = '0';
+    setTimeout(() => { el.style.width = (val * 100).toFixed(1) + '%'; }, 50);
+    document.getElementById(pct).textContent = (val * 100).toFixed(1) + '%';
+  });
+}
+
+/* ── Main predict function ──────────────────────────── */
+async function runPredict() {
+  const btn = document.getElementById('predict-btn');
+
+  // Collect values
+  const payload = {
+    reel_length_sec    : parseInt(document.getElementById('reel_length_sec').value),
+    posting_time       : parseInt(document.getElementById('posting_time').value),
+    hook_strength_score: parseFloat(document.getElementById('hook_strength_score').value),
+    caption_length     : parseInt(document.getElementById('caption_length').value),
+    hashtags_count     : parseInt(document.getElementById('hashtags_count').value),
+    trending_audio     : document.getElementById('trending_audio').checked,
+  };
+
+  // Basic client-side guard
+  if (isNaN(payload.reel_length_sec) || isNaN(payload.posting_time)) {
+    showToast('⚠️  Please fill in all fields.');
+    return;
+  }
+
+  // Loading state
+  btn.classList.add('loading');
+  btn.innerHTML = '<span class="spinner"></span> Analysing…';
+
+  try {
+    const resp = await fetch('http://localhost:8000/predict', {
+      method : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body   : JSON.stringify(payload),
+    });
+
+    if (!resp.ok) {
+      const err = await resp.json();
+      throw new Error(err.detail || `HTTP ${resp.status}`);
+    }
+
+    const data = await resp.json();
+
+    /* Show gauge section */
+    document.getElementById('idle-state').style.display   = 'none';
+    const gs = document.getElementById('gauge-section');
+    gs.style.display = 'flex';
+
+    /* Animate gauge */
+    animateGauge(data.virality_score);
+
+    /* Class badge */
+    const classEl = document.getElementById('result-class');
+    classEl.textContent = data.predicted_class === 'Viral'    ? '🚀 Viral!'   :
+                          data.predicted_class === 'Moderate' ? '📈 Moderate' :
+                                                                 '📉 Low Reach';
+    classEl.className = 'result-class ' + data.predicted_class.toLowerCase();
+    setTimeout(() => classEl.classList.add('show'), 100);
+
+    /* Prob bars */
+    const probEl = document.getElementById('prob-bars');
+    probEl.classList.remove('show');
+    setTimeout(() => {
+      animateBars(data.probabilities);
+      probEl.classList.add('show');
+    }, 100);
+
+    /* Feedback / tips */
+    document.getElementById('tip-text').innerHTML =
+      `<span style="font-size:18px;">💡</span> ${data.feedback}`;
+
+    /* Pop animation on result card */
+    const rc = document.getElementById('result-card');
+    rc.classList.remove('pop');
+    void rc.offsetWidth;
+    rc.classList.add('pop');
+
+  } catch (err) {
+    showToast('❌  ' + (err.message.includes('fetch') ? 'Could not reach API — is the server running?' : err.message));
+  } finally {
+    btn.classList.remove('loading');
+    btn.innerHTML = '✦ Predict Virality';
+  }
+}
+</script>
+</body>
+</html>

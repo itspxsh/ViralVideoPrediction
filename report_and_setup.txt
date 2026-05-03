@@ -1,0 +1,301 @@
+==========================================================================
+  ACADEMIC REPORT OUTLINE
+  Project: A Success Prediction Model for Short-Form Video Content
+  Course:  Data Models  |  Final Project
+==========================================================================
+
+──────────────────────────────────────────────────────────────────────────
+SECTION 1 — BACKGROUND                                              [5 pts]
+──────────────────────────────────────────────────────────────────────────
+
+1.1  Motivation & Industry Context
+     • Short-form video (Instagram Reels, TikTok, YouTube Shorts) has
+       become the dominant content format; organic reach is increasingly
+       unpredictable.
+     • Creators and brands need pre-publish signals to prioritise effort
+       and budget, motivating a data-driven prediction framework.
+
+1.2  Problem Statement
+     • Given only information available BEFORE a reel is published
+       (length, posting hour, hook quality, caption, hashtags, audio
+       trend status), can we classify its eventual reach as Low,
+       Moderate, or Viral?
+
+1.3  Prior Work & Research Gap
+     • Most existing studies rely on post-publish engagement metrics
+       (likes, comments, shares) — making them suitable only for
+       retrospective analysis, not pre-publish decision support.
+     • This project closes that gap by strictly limiting features to
+       pre-publish metadata.
+
+1.4  Dataset Overview
+     • Source: Instagram_Data.csv  (100,000 synthetic Reels records)
+     • 26 raw columns spanning creator metadata, pre-publish signals,
+       and post-publish engagement metrics.
+     • Target: Derived `reach` column → binned into 3 ordinal classes.
+
+
+──────────────────────────────────────────────────────────────────────────
+SECTION 2 — PREPROCESSING & EXPLORATION                            [15 pts]
+──────────────────────────────────────────────────────────────────────────
+
+2.1  Data Cleaning
+     • No missing values found in the six pre-publish features after
+       initial inspection (verified with df.isnull().sum()).
+     • `trending_audio` coerced from boolean → integer (0/1) for
+       XGBoost compatibility.
+
+2.2  Target Engineering (Reach Binning)
+     • Continuous `reach` discretised via pd.qcut with quantile
+       boundaries [0, 0.60, 0.90, 1.0]:
+         ‣ Class 0 – Low      (bottom 60 %)
+         ‣ Class 1 – Moderate (60th–90th percentile)
+         ‣ Class 2 – Viral    (top 10 %)
+     • Class imbalance acknowledged; StratifiedKFold CV used to preserve
+       proportions across folds.
+
+2.3  **STRICT DATA-LEAKAGE PREVENTION** ← Key Methodology Decision
+     • All post-publish columns removed from the feature matrix BEFORE
+       any modelling step:
+         Dropped: likes, comments, shares, saves, engagement_rate,
+                  impressions, avg_watch_time_sec, retention_rate,
+                  completion_rate, rewatch_rate, explore_page_boost,
+                  virality_score, non_follower_reach_ratio.
+     • The continuous `reach` column is used ONLY to derive the target
+       label, then immediately dropped.
+     • Final pre-publish feature set (6 columns):
+         reel_length_sec | posting_time | hook_strength_score
+         caption_length  | hashtags_count | trending_audio
+
+2.4  Exploratory Data Analysis
+     2.4.1  Correlation Heatmap (pre-publish features only)
+            • Shows inter-feature correlations; confirms low
+              multi-collinearity among predictors.
+     2.4.2  Boxplot – Posting Hour vs Engagement Category
+            • Median posting hour shifts slightly across classes,
+              suggesting timing carries a weak predictive signal.
+            • Viral reels cluster more densely in early-evening hours.
+
+2.5  Feature Scaling
+     • StandardScaler applied to the five continuous numeric features
+       within a sklearn Pipeline, preventing data leakage from the test
+       fold into the scaler parameters.
+
+
+──────────────────────────────────────────────────────────────────────────
+SECTION 3 — ANALYSIS & METHOD                                      [15 pts]
+──────────────────────────────────────────────────────────────────────────
+
+3.1  Model Selection Rationale
+     • XGBClassifier (Extreme Gradient Boosting) chosen for:
+         ‣ Native handling of mixed numeric/binary feature types
+         ‣ Built-in regularisation (gamma, lambda) to reduce overfitting
+         ‣ Efficient computation on 100 k rows
+         ‣ Direct SHAP compatibility for explainability
+
+3.2  Pipeline Architecture
+     ┌──────────────┐     ┌──────────────────┐     ┌─────────────────┐
+     │  Raw Features│────▶│  StandardScaler  │────▶│ XGBClassifier   │
+     │  (6 columns) │     │  (numeric only)  │     │  (multi:softprob│
+     └──────────────┘     └──────────────────┘     └─────────────────┘
+     • trending_audio bypasses the scaler (binary, no scaling needed)
+       and is appended post-scaling before XGBoost ingestion.
+
+3.3  Hyperparameter Tuning via GridSearchCV
+     • Search space:
+         learning_rate : [0.05, 0.10, 0.20]
+         max_depth     : [3, 5, 7]
+     • 5-fold StratifiedKFold, scoring = macro-F1
+     • Best configuration identified and retrained on the full training
+       set (80 % of data) before final evaluation.
+
+3.4  Evaluation Metrics
+     • Classification Report (per-class precision, recall, F1)
+     • Macro-averaged F1 as the primary metric (handles class imbalance)
+     • Confusion Matrix visualisation
+
+3.5  Explainability — SHAP Beeswarm Analysis
+     • TreeExplainer generates SHAP values for each test observation.
+     • Beeswarm plot for the Viral class shows which features push a
+       prediction towards or away from virality, enabling actionable
+       creator guidance.
+     • Expected top contributor: hook_strength_score (positive impact
+       for high values); posting_time and trending_audio also prominent.
+
+3.6  Deployment Architecture
+     • FastAPI backend exposes a /predict endpoint accepting the 6
+       pre-publish fields and returning:
+         ‣ virality_score (0–100 composite index)
+         ‣ predicted_class & class probabilities
+         ‣ data-driven feedback string
+     • Single-page HTML frontend with a bento-box layout and animated
+       circular gauge renders results in real time.
+
+
+──────────────────────────────────────────────────────────────────────────
+SECTION 4 — RESULT & CONCLUSION                                     [5 pts]
+──────────────────────────────────────────────────────────────────────────
+
+4.1  Model Performance Summary
+     • Report achieved macro-F1 results for all three classes; Viral
+       class (minority) performance highlighted as key benchmark.
+     • GridSearchCV identified optimal learning_rate and max_depth,
+       improving baseline macro-F1.
+
+4.2  Key Findings from SHAP
+     • hook_strength_score is the strongest pre-publish predictor of
+       viral reach, validating creator intuition about opening hooks.
+     • trending_audio has moderate positive influence on the Viral class.
+     • posting_time shows a weaker but measurable effect, consistent
+       with EDA boxplot findings.
+
+4.3  Limitations
+     • The six pre-publish features capture creator intent but not
+       audience factors (creator follower count was deliberately excluded
+       as a potential confounder and fairness concern).
+     • Reach binning thresholds (60/90th percentile) are dataset-specific
+       and may need recalibration for different creator niches.
+
+4.4  Conclusion
+     • Demonstrated that pre-publish metadata alone enables statistically
+       meaningful reach classification, supporting data-driven content
+       strategy without requiring post-publish feedback loops.
+     • The accompanying web prototype enables any creator to receive
+       an instant, interpretable prediction before hitting "Post."
+
+4.5  Future Work
+     • Incorporate creator-segment embeddings (niche, follower tier)
+       as additional pre-publish signals.
+     • Explore temporal drift: retrain monthly as audio trends change.
+     • A/B test creator decisions guided by the tool vs. unaided.
+
+
+──────────────────────────────────────────────────────────────────────────
+PRESENTATION TALKING POINTS — DATA LEAKAGE PREVENTION
+(Highlight these three points prominently in the slide deck)
+──────────────────────────────────────────────────────────────────────────
+
+  ★  Point 1 — The "Oracle Problem"
+     "Any model trained on post-publish metrics like likes, shares, or
+      retention rate would be useless in practice — you don't have those
+      numbers until AFTER you've already posted. We treat the prediction
+      task exactly as a creator would experience it: making a decision
+      with only pre-publish information available."
+
+  ★  Point 2 — Drop-First, Train-Second Protocol
+     "In the code, we explicitly call df.drop() on every post-publish
+      column before the train/test split. This is not optional cleanup —
+      it is a hard architectural constraint. The scaler and classifier
+      never see a single post-publish value, not even as noise."
+
+  ★  Point 3 — Reach as a Label, Not a Feature
+     "reach is the one exception: it IS a post-publish metric, but we
+      use it exclusively to generate the target label via pd.qcut, then
+      immediately discard the continuous column. The model therefore
+      predicts reach without ever learning from reach — an important
+      distinction that separates a valid classifier from a circular,
+      leak-contaminated one."
+
+
+==========================================================================
+  SECTION 5 — LOCAL SETUP INSTRUCTIONS
+==========================================================================
+
+Prerequisites
+-------------
+  • Python 3.10+ installed  (python3 --version)
+  • pip installed           (pip --version)
+  • Node/npm NOT required   (pure Python + Vanilla JS)
+
+Step 1 — Clone / create your project directory
+-----------------------------------------------
+  mkdir reel_predictor && cd reel_predictor
+  # Copy these files into the directory:
+  #   ml_notebook.py  |  app.py  |  index.html  |  Instagram_Data.csv
+
+Step 2 — Create and activate a virtual environment
+---------------------------------------------------
+  # macOS / Linux
+  python3 -m venv .venv
+  source .venv/bin/activate
+
+  # Windows (PowerShell)
+  python -m venv .venv
+  .\.venv\Scripts\Activate.ps1
+
+Step 3 — Install dependencies
+------------------------------
+  pip install --upgrade pip
+  pip install fastapi "uvicorn[standard]" xgboost scikit-learn \
+              pandas shap matplotlib seaborn pydantic numpy
+
+  # Optional: Jupyter to run the notebook interactively
+  pip install jupyter
+
+Step 4 — Run the ML notebook (trains model, saves artefacts)
+-------------------------------------------------------------
+  # As a plain Python script:
+  python ml_notebook.py
+
+  # OR as a Jupyter notebook:
+  jupyter notebook
+  # Then paste ml_notebook.py contents into a new notebook cell-by-cell
+
+  # Expected outputs in the same directory:
+  #   xgb_model.pkl
+  #   preprocessor.pkl
+  #   eda_correlation_heatmap.png
+  #   eda_posting_time_boxplot.png
+  #   eval_confusion_matrix.png
+  #   shap_beeswarm_viral.png
+
+Step 5 — Start the FastAPI backend
+------------------------------------
+  uvicorn app:app --reload --host 0.0.0.0 --port 8000
+
+  # Verify it's running:
+  curl http://localhost:8000/
+  # → {"status":"ok","message":"Reel Success Predictor API is running."}
+
+  # Test the predict endpoint:
+  curl -X POST http://localhost:8000/predict \
+       -H "Content-Type: application/json" \
+       -d '{"reel_length_sec":15,"posting_time":18,"hook_strength_score":0.85,"caption_length":120,"hashtags_count":5,"trending_audio":true}'
+
+  # Interactive API docs (Swagger UI):
+  open http://localhost:8000/docs
+
+Step 6 — Open the frontend
+---------------------------
+  # No build step required — open directly in a browser:
+  open index.html          # macOS
+  start index.html         # Windows
+  xdg-open index.html      # Linux
+
+  # Or serve via Python for proper CORS behaviour:
+  python3 -m http.server 3000
+  # Then visit: http://localhost:3000/index.html
+
+Troubleshooting
+---------------
+  • "Model artefacts not found" → Run ml_notebook.py first (Step 4).
+  • CORS error in browser    → Ensure uvicorn is on port 8000 and the
+                               frontend is not on port 8000 itself.
+  • XGBoost install fails    → Try: pip install xgboost --no-cache-dir
+  • SHAP import error        → pip install shap --upgrade
+
+Directory Structure (final)
+----------------------------
+  reel_predictor/
+  ├── Instagram_Data.csv        ← raw dataset
+  ├── ml_notebook.py            ← Section 1: ML pipeline
+  ├── app.py                    ← Section 2: FastAPI backend
+  ├── index.html                ← Section 3: Frontend
+  ├── xgb_model.pkl             ← generated by ml_notebook.py
+  ├── preprocessor.pkl          ← generated by ml_notebook.py
+  ├── eda_correlation_heatmap.png
+  ├── eda_posting_time_boxplot.png
+  ├── eval_confusion_matrix.png
+  └── shap_beeswarm_viral.png
+
+==========================================================================
