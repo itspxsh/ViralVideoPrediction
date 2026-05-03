@@ -190,7 +190,14 @@ def predict_probabilities(payload: PredictRequest) -> Dict[str, float]:
 
     if assets["kind"] == "bundle":
         pipeline = assets["pipeline"]
-        probabilities = pipeline.predict_proba(X)[0]
+
+        expected_features = getattr(pipeline, "feature_names_in_", None)
+        if expected_features is not None:
+            X_for_model = X[list(expected_features)]
+        else:
+            X_for_model = X
+
+        probabilities = pipeline.predict_proba(X_for_model)[0]
 
         model_step = getattr(pipeline, "named_steps", {}).get("model", pipeline)
         classes = getattr(model_step, "classes_", np.array([0, 1, 2]))
@@ -200,8 +207,32 @@ def predict_probabilities(payload: PredictRequest) -> Dict[str, float]:
         model = assets["model"]
         preprocessor = assets["preprocessor"]
 
-        X_processed = preprocessor.transform(X)
-        probabilities = model.predict_proba(X_processed)[0]
+        expected_preprocessor_features = getattr(preprocessor, "feature_names_in_", None)
+
+        if expected_preprocessor_features is not None:
+            X_for_preprocessor = X[list(expected_preprocessor_features)]
+        else:
+            X_for_preprocessor = X[
+                [
+                    "reel_length_sec",
+                    "posting_time",
+                    "hook_strength_score",
+                    "caption_length",
+                    "hashtags_count",
+                ]
+            ]
+
+        X_processed = preprocessor.transform(X_for_preprocessor)
+
+        model_n_features = getattr(model, "n_features_in_", None)
+
+        if model_n_features == X_processed.shape[1] + 1:
+            trending_audio_array = np.array([[int(payload.trending_audio)]])
+            X_model_input = np.hstack([X_processed, trending_audio_array])
+        else:
+            X_model_input = X_processed
+
+        probabilities = model.predict_proba(X_model_input)[0]
 
         classes = getattr(model, "classes_", np.array([0, 1, 2]))
         class_names = assets.get("class_names", CLASS_NAMES)
@@ -218,7 +249,6 @@ def predict_probabilities(payload: PredictRequest) -> Dict[str, float]:
         prob_map = {key: value / total for key, value in prob_map.items()}
 
     return prob_map
-
 
 def generate_feedback(payload: PredictRequest, probabilities: Dict[str, float]) -> str:
     tips = []
